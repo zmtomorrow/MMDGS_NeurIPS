@@ -11,6 +11,13 @@ from torch.autograd.functional import jacobian
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
+def is_psd(Q):
+    e, _ = torch.linalg.eig(Q)
+    if not torch.all(e.real > 1e-7):
+        return False
+    else:
+        return True
+
 
 def gibbs_sampler(x_init, backward_sampler, opt):
     x=x_init.to(opt['device'])
@@ -117,5 +124,8 @@ class DenoisingEBM(nn.Module):
         hessian_matrix = self.get_hessian(noisy_x)
         with torch.no_grad():
             x_cov=self.noise_std**4*hessian_matrix+torch.diag(torch.ones(2).to(self.device))*(self.noise_std)**2
-            return MultivariateNormal(x_mu,x_cov).sample()
+            if is_psd(x_cov[0])==False:
+                x_cov = x_cov.view(2,2) + torch.diag(torch.ones(2, device=self.device)) * 1e-2
+            return MultivariateNormal(x_mu, x_cov).sample()
+
 
